@@ -1,6 +1,7 @@
 import anthropic
 import os
 from dotenv import load_dotenv
+import streamlit as st
 
 from src.data_loader import schema_to_prompt
 from src.tools import (
@@ -35,6 +36,7 @@ class DataChatAgent:
         self.schema = schema
         self.memory = ConversationMemory(max_turns=10)
         self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
         schema_text = schema_to_prompt(schema)
         self.system_prompt = SYSTEM_PROMPT.format(
@@ -58,6 +60,13 @@ class DataChatAgent:
         )
 
         return self._process_response(response)
+    def get_api_key() -> str:
+    """Recupere la cle API depuis st.secrets (Streamlit Cloud) ou .env (local)."""
+    try:
+        return st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        load_dotenv()
+        return os.getenv("ANTHROPIC_API_KEY")
 
     def _process_response(self, response) -> dict:
         """Traite la réponse de Claude et exécute les outils si nécessaire."""
