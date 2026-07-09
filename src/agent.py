@@ -12,12 +12,16 @@ from src.memory import ConversationMemory
 
 
 def get_api_key() -> str:
-    """Recupere la cle API depuis st.secrets (Streamlit Cloud) ou .env (local)."""
     try:
-        return st.secrets["ANTHROPIC_API_KEY"]
-    except Exception:
-        load_dotenv()
-        return os.getenv("ANTHROPIC_API_KEY")
+        key = st.secrets["ANTHROPIC_API_KEY"]
+        if key:
+            return key
+    except Exception as e:
+        pass
+    
+    load_dotenv()
+    key = os.getenv("ANTHROPIC_API_KEY")
+    return key
 
 
 SYSTEM_PROMPT = """Tu es DataChat, un agent analytique expert en données business.
@@ -48,6 +52,11 @@ class DataChatAgent:
             schema=schema_text,
             nb_rows=schema['nb_rows']
         )
+        api_key = get_api_key()
+        if not api_key:
+            st.error("Clé API non trouvée. Vérifiez les secrets Streamlit.")
+            st.stop()
+        self.client = anthropic.Anthropic(api_key=api_key)
 
     def chat(self, user_message: str) -> dict:
         self.memory.add_user_message(user_message)
