@@ -36,8 +36,7 @@ class DataChatAgent:
         self.schema = schema
         self.memory = ConversationMemory(max_turns=10)
         self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
+        self.client = anthropic.Anthropic(api_key=get_api_key())
         schema_text = schema_to_prompt(schema)
         self.system_prompt = SYSTEM_PROMPT.format(
             schema=schema_text,
