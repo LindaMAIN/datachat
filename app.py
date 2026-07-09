@@ -1,6 +1,7 @@
 import streamlit as st
 from src.data_loader import load_superstore, get_schema, get_quick_stats
 from src.agent import DataChatAgent
+import os
 
 # ─── CONFIG PAGE ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -44,7 +45,8 @@ st.markdown("""
 # ─── CHARGEMENT DES DONNEES ────────────────────────────────────────────────────
 @st.cache_resource
 def init_agent():
-    df = load_superstore('src/data/superstore.csv')
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    df = load_superstore(os.path.join(BASE_DIR, 'src', 'data', 'Superstore.csv'))
     schema = get_schema(df)
     agent = DataChatAgent(df, schema)
     return agent, get_quick_stats(df)
@@ -57,7 +59,7 @@ agent, stats = init_agent()
 col_title, col_reset = st.columns([5, 1])
 with col_title:
     st.markdown('<p class="main-header">DataChat</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Agent conversationnel sur donnees Superstore Sales — Anthropic API</p>',
+    st.markdown('<p class="sub-header">Agent conversationnel sur donnees Superstore Sales - Anthropic API</p>',
                 unsafe_allow_html=True)
 with col_reset:
     st.markdown("<br>", unsafe_allow_html=True)
