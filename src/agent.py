@@ -1,7 +1,7 @@
 import anthropic
 import os
-from dotenv import load_dotenv
 import streamlit as st
+from dotenv import load_dotenv
 
 from src.data_loader import schema_to_prompt
 from src.tools import (
@@ -10,7 +10,14 @@ from src.tools import (
 )
 from src.memory import ConversationMemory
 
-load_dotenv()
+
+def get_api_key() -> str:
+    """Recupere la cle API depuis st.secrets (Streamlit Cloud) ou .env (local)."""
+    try:
+        return st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        load_dotenv()
+        return os.getenv("ANTHROPIC_API_KEY")
 
 
 SYSTEM_PROMPT = """Tu es DataChat, un agent analytique expert en données business.
@@ -22,7 +29,7 @@ REGLES IMPORTANTES :
 - Utilise TOUJOURS un outil pour répondre aux questions sur les données. Ne devine jamais les chiffres.
 - Quand tu génères du code pandas, stocke TOUJOURS le résultat dans une variable nommée 'result'.
 - Quand tu génères un graphique Plotly, stocke TOUJOURS le graphique dans une variable nommée 'fig'.
-- Après avoir utilisé un outil, explique le résultat en langage naturel clair et concis compréhensible par tout type de profil.
+- Après avoir utilisé un outil, explique le résultat en langage naturel clair et concis.
 - Cite toujours la source : "Source : Superstore Sales Dataset, {nb_rows} transactions"
 - Si une question est ambiguë, pose une question de clarification avant d'utiliser un outil.
 - Pour les comparaisons temporelles, utilise df['Order Date'].dt.year pour filtrer par année.
@@ -35,7 +42,6 @@ class DataChatAgent:
         self.df = df
         self.schema = schema
         self.memory = ConversationMemory(max_turns=10)
-        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         self.client = anthropic.Anthropic(api_key=get_api_key())
         schema_text = schema_to_prompt(schema)
         self.system_prompt = SYSTEM_PROMPT.format(
@@ -44,12 +50,7 @@ class DataChatAgent:
         )
 
     def chat(self, user_message: str) -> dict:
-        """
-        Traite un message utilisateur et retourne la réponse complète.
-        Retourne un dict avec : text, chart (optionnel), table (optionnel), export (optionnel)
-        """
         self.memory.add_user_message(user_message)
-
         response = self.client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
@@ -57,18 +58,9 @@ class DataChatAgent:
             tools=TOOLS_DEFINITION,
             messages=self.memory.get_messages()
         )
-
         return self._process_response(response)
-    def get_api_key() -> str:
-    """Recupere la cle API depuis st.secrets (Streamlit Cloud) ou .env (local)."""
-    try:
-        return st.secrets["ANTHROPIC_API_KEY"]
-    except Exception:
-        load_dotenv()
-        return os.getenv("ANTHROPIC_API_KEY")
 
     def _process_response(self, response) -> dict:
-        """Traite la réponse de Claude et exécute les outils si nécessaire."""
         result = {
             "text": "",
             "chart": None,
@@ -77,16 +69,13 @@ class DataChatAgent:
             "tool_used": None
         }
 
-        # Boucle agentique : Claude peut utiliser plusieurs outils
         while response.stop_reason == "tool_use":
             tool_results = []
-
             for block in response.content:
                 if block.type == "tool_use":
                     tool_name = block.name
                     tool_input = block.input
                     result["tool_used"] = tool_name
-
                     tool_result = self._execute_tool(tool_name, tool_input, result)
                     tool_results.append({
                         "type": "tool_result",
@@ -94,7 +83,6 @@ class DataChatAgent:
                         "content": str(tool_result)
                     })
 
-            # Ajoute la réponse de Claude et les résultats d'outils à l'historique
             self.memory.messages.append({
                 "role": "assistant",
                 "content": response.content
@@ -104,7 +92,6 @@ class DataChatAgent:
                 "content": tool_results
             })
 
-            # Claude génère la réponse finale
             response = self.client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=4096,
@@ -113,20 +100,15 @@ class DataChatAgent:
                 messages=self.memory.get_messages()
             )
 
-        # Récupère le texte final
         for block in response.content:
             if hasattr(block, "text"):
                 result["text"] = block.text
                 break
 
-        # Ajoute la réponse finale à la mémoire
         self.memory.add_assistant_message(result["text"])
-
         return result
 
     def _execute_tool(self, tool_name: str, tool_input: dict, result: dict) -> str:
-        """Exécute l'outil demandé par Claude."""
-
         if tool_name == "query_data":
             tool_result = query_data(self.df, tool_input["code"])
             if tool_result["success"] and tool_result["type"] in ["dataframe", "series"]:
